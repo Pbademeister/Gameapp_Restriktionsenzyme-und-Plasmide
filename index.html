@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BioLab Quest – Plasmide & Restriktionsenzyme</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:     #080c18;
+  --bg2:    #0d1226;
+  --bg3:    #111827;
+  --card:   #131929;
+  --border: #1e2d47;
+  --bright: #2d4a6e;
+  --green:  #00ff88;
+  --blue:   #00b4ff;
+  --purple: #c084fc;
+  --yellow: #fbbf24;
+  --red:    #f87171;
+  --text:   #e2e8f0;
+  --mid:    #94a3b8;
+  --dim:    #4a5568;
+  --r:      12px;
+}
+html { scroll-behavior: smooth; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+
+/* ── HUD ── */
+.hud {
+  position: sticky; top: 0; z-index: 200;
+  background: rgba(8,12,24,.96); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: .6rem 1.2rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+}
+.hud-logo { font-size: 1rem; font-weight: 900; white-space: nowrap; flex-shrink: 0; background: linear-gradient(90deg, var(--green), var(--blue)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.hud-level { display: flex; align-items: center; gap: .4rem; background: var(--card); border: 1px solid var(--bright); border-radius: 20px; padding: .25rem .75rem; font-size: .78rem; font-weight: 700; flex-shrink: 0; }
+.hud-level .lv { color: var(--yellow); }
+.hud-xp-wrap { flex: 1; min-width: 100px; }
+.hud-xp-top { font-size: .68rem; color: var(--mid); display: flex; justify-content: space-between; margin-bottom: 3px; }
+.hud-bar { height: 7px; background: var(--bg3); border-radius: 4px; overflow: hidden; border: 1px solid var(--border); }
+.hud-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--green), var(--blue)); transition: width .6s cubic-bezier(.34,1.56,.64,1); box-shadow: 0 0 8px rgba(0,255,136,.4); }
+.hud-badges { display: flex; gap: .35rem; flex-shrink: 0; }
+.hud-badge { width: 26px; height: 26px; border-radius: 50%; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: .85rem; opacity: .25; transition: opacity .4s, box-shadow .4s; }
+.hud-badge.earned { opacity: 1; box-shadow: 0 0 10px rgba(0,255,136,.4); }
+
+/* ── HERO ── */
+.hero { text-align: center; padding: 3rem 1.5rem 2rem; background: radial-gradient(ellipse at 50% 0%, rgba(0,180,255,.07) 0%, transparent 65%); }
+.hero-tag { display: inline-block; border: 1px solid var(--blue); color: var(--blue); border-radius: 20px; padding: 3px 14px; font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 1rem; }
+.hero h1 { font-size: clamp(2rem,5vw,3rem); font-weight: 900; line-height: 1.1; background: linear-gradient(135deg, #fff 30%, var(--green)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: .7rem; }
+.hero p { color: var(--mid); max-width: 500px; margin: 0 auto; font-size: .95rem; }
+.hero-stats { display: flex; gap: 1rem; justify-content: center; margin-top: 1.5rem; flex-wrap: wrap; }
+.hero-stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: .5rem 1rem; font-size: .82rem; display: flex; align-items: center; gap: .4rem; }
+.hero-stat b { color: var(--yellow); }
+
+/* ── MISSIONS ── */
+.ms { max-width: 860px; margin: 0 auto; padding: 1rem 1rem 4rem; }
+.ms-title { font-size: 1rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--mid); margin-bottom: 1.2rem; display: flex; align-items: center; gap: .7rem; }
+.ms-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.ms-grid { display: flex; flex-direction: column; gap: 1rem; }
+
+/* ── MISSION CARD ── */
+.mc { background: var(--card); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; transition: border-color .3s, box-shadow .3s; }
+.mc.unlocked { border-color: var(--bright); }
+.mc.active   { border-color: var(--blue); box-shadow: 0 0 20px rgba(0,180,255,.2); }
+.mc.complete { border-color: var(--green); box-shadow: 0 0 18px rgba(0,255,136,.15); }
+.mc.locked   { opacity: .5; pointer-events: none; }
+.mc-hdr { display: flex; align-items: center; gap: .9rem; padding: 1rem 1.2rem; cursor: pointer; user-select: none; border-bottom: 1px solid transparent; transition: background .2s; }
+.mc:not(.locked) .mc-hdr:hover { background: rgba(255,255,255,.03); }
+.mc.open .mc-hdr { border-bottom-color: var(--border); }
+.mc-num { width: 38px; height: 38px; border-radius: 9px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: .9rem; border: 2px solid var(--bright); background: var(--bg3); color: var(--mid); }
+.mc.complete .mc-num { background: rgba(0,255,136,.1); border-color: var(--green); color: var(--green); }
+.mc.active   .mc-num { background: rgba(0,180,255,.1); border-color: var(--blue);  color: var(--blue);  }
+.mc-meta { flex: 1; }
+.mc-title { font-weight: 700; font-size: .95rem; }
+.mc-sub   { font-size: .75rem; color: var(--mid); margin-top: 1px; }
+.mc-xp { background: rgba(251,191,36,.1); border: 1px solid rgba(251,191,36,.3); color: var(--yellow); font-size: .72rem; font-weight: 700; border-radius: 7px; padding: 2px 8px; flex-shrink: 0; }
+.mc.complete .mc-xp { background: rgba(0,255,136,.08); border-color: rgba(0,255,136,.3); color: var(--green); }
+.mc-icon { font-size: 1.1rem; flex-shrink: 0; }
+.mc-chev { color: var(--dim); font-size: .75rem; transition: transform .3s; flex-shrink: 0; }
+.mc.open .mc-chev { transform: rotate(90deg); }
+.mc-body { display: none; padding: 1.2rem; animation: sld .3s ease; }
+.mc.open .mc-body { display: block; }
+@keyframes sld { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+
+/* ── THEORY BOX ── */
+.theory { background: var(--bg3); border: 1px solid var(--border); border-left: 3px solid var(--blue); border-radius: 8px; padding: .9rem 1.1rem; font-size: .86rem; color: var(--mid); margin-bottom: 1.1rem; line-height: 1.7; }
+.theory strong { color: var(--text); }
+.theory-tag { font-size: .65rem; text-transform: uppercase; letter-spacing: .1em; color: var(--blue); font-weight: 700; margin-bottom: .35rem; }
+
+/* ── GAME AREA ── */
+.ga { background: var(--bg3); border-radius: 10px; padding: 1.1rem; border: 1px solid var(--border); }
+.ga-title { font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; color: var(--purple); font-weight: 700; margin-bottom: .9rem; }
+.ga-title::before { content: '⚡ '; }
+
+/* ── FEEDBACK ── */
+.fb { border-radius: 8px; padding: .75rem 1rem; font-size: .86rem; margin-top: .8rem; display: none; animation: fadeIn .3s ease; }
+.fb.show { display: block; }
+.fb.ok  { background: rgba(0,255,136,.07); border: 1px solid rgba(0,255,136,.3); color: #6ee7b7; }
+.fb.err { background: rgba(248,113,113,.07); border: 1px solid rgba(248,113,113,.3); color: #fca5a5; }
+.fb.inf { background: rgba(0,180,255,.07); border: 1px solid rgba(0,180,255,.3); color: #7dd3fc; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; } }
+
+/* ── BUTTONS ── */
+.btn { padding: .55rem 1.2rem; border-radius: 8px; border: none; font-size: .85rem; font-weight: 700; cursor: pointer; transition: all .2s; display: inline-flex; align-items: center; gap: .4rem; }
+.btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.btn-p { background: linear-gradient(135deg,#0055cc,#0099ff); color: #fff; }
+.btn-p:hover:not(:disabled) { box-shadow: 0 0 16px rgba(0,153,255,.4); transform: translateY(-1px); }
+.btn-g { background: linear-gradient(135deg,#00a855,#00ff88); color: #000; font-weight: 800; }
+.btn-g:hover:not(:disabled) { box-shadow: 0 0 16px rgba(0,255,136,.4); transform: translateY(-1px); }
+.btn-ghost { background: transparent; border: 1px solid var(--bright); color: var(--mid); }
+.btn-ghost:hover:not(:disabled) { border-color: var(--text); color: var(--text); }
+.btn:disabled { opacity: .35; cursor: default; }
+.btn-row { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: .9rem; }
+
+/* ── M1: PALINDROME ── */
+.pal-opts { display: flex; flex-wrap: wrap; gap: .6rem; margin: .9rem 0; }
+.pal-btn { font-family: 'Courier New', monospace; font-size: .92rem; letter-spacing: .1em; background: var(--bg); border: 2px solid var(--bright); color: var(--mid); border-radius: 8px; padding: .45rem .9rem; cursor: pointer; transition: all .2s; }
+.pal-btn:hover:not(:disabled) { border-color: var(--blue); color: var(--text); }
+.pal-btn.sel     { border-color: var(--blue); color: var(--blue); background: rgba(0,180,255,.1); }
+.pal-btn.correct { border-color: var(--green); color: var(--green); background: rgba(0,255,136,.1); }
+.pal-btn.wrong   { border-color: var(--red);   color: var(--red);   background: rgba(248,113,113,.1); }
+.pal-btn:disabled { cursor: default; }
+
+/* ── M2: MATCH ── */
+.match-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+.match-col-lbl { font-size: .65rem; text-transform: uppercase; letter-spacing: .08em; color: var(--mid); font-weight: 700; margin-bottom: .4rem; }
+.match-col { display: flex; flex-direction: column; gap: .5rem; }
+.m-item { background: var(--bg); border: 2px solid var(--bright); border-radius: 8px; padding: .6rem .85rem; font-size: .86rem; cursor: pointer; transition: all .2s; user-select: none; }
+.m-item:hover:not(.matched) { border-color: var(--purple); color: var(--purple); background: rgba(192,132,252,.07); }
+.m-item.sel     { border-color: var(--purple); background: rgba(192,132,252,.12); color: var(--purple); }
+.m-item.matched { border-color: var(--green);  background: rgba(0,255,136,.07);   color: var(--green);  cursor: default; }
+.m-item.wrong   { border-color: var(--red); animation: shake .4s; }
+.m-seq { font-family: 'Courier New', monospace; letter-spacing: .08em; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
+
+/* ── M3: PLASMID ── */
+.plasm-wrap { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
+.pseg { cursor: pointer; transition: filter .25s; }
+.pseg:hover { filter: brightness(1.25) drop-shadow(0 0 6px rgba(255,255,255,.25)); }
+.pseg.scanned { filter: brightness(1.1); }
+.seg-panel { flex: 1; min-width: 180px; background: var(--bg); border: 1px solid var(--bright); border-radius: 10px; padding: .9rem; font-size: .84rem; color: var(--mid); line-height: 1.65; }
+.seg-panel h4 { font-size: .88rem; font-weight: 700; color: var(--text); margin-bottom: .35rem; }
+.seg-xp { display: inline-block; background: rgba(251,191,36,.1); border: 1px solid rgba(251,191,36,.3); color: var(--yellow); font-size: .68rem; font-weight: 700; border-radius: 5px; padding: 1px 6px; margin-left: .35rem; }
+.scan-dots { display: flex; gap: .4rem; margin-top: .7rem; align-items: center; font-size: .72rem; color: var(--mid); }
+.sdot { width: 9px; height: 9px; border-radius: 50%; background: var(--border); transition: background .3s, box-shadow .3s; }
+.sdot.done { background: var(--green); box-shadow: 0 0 5px rgba(0,255,136,.5); }
+
+/* ── M4: SORT ── */
+.sort-hint { font-size: .82rem; color: var(--mid); margin-bottom: .8rem; }
+.sort-hint strong { color: var(--blue); }
+.sort-list { display: flex; flex-direction: column; gap: .5rem; }
+.sort-item {
+  background: var(--bg); border: 2px solid var(--bright); border-radius: 10px;
+  padding: .75rem .9rem; display: flex; align-items: center; gap: .7rem;
+  cursor: pointer; font-size: .86rem; transition: all .2s; user-select: none;
+}
+.sort-item.sel      { border-color: var(--yellow); background: rgba(251,191,36,.06); }
+.sort-item.correct  { border-color: var(--green);  background: rgba(0,255,136,.05);  cursor: default; }
+.sort-item.wrong    { border-color: var(--red);     background: rgba(248,113,113,.05); cursor: default; }
+.sort-n { width: 26px; height: 26px; border-radius: 6px; flex-shrink: 0; background: var(--bg3); border: 1px solid var(--bright); display: flex; align-items: center; justify-content: center; font-size: .78rem; font-weight: 700; color: var(--mid); }
+.sort-item.sel  .sort-n { background: rgba(251,191,36,.15); border-color: var(--yellow); color: var(--yellow); }
+.sort-item.correct .sort-n { background: rgba(0,255,136,.15); border-color: var(--green); color: var(--green); }
+.sort-item.wrong   .sort-n { background: rgba(248,113,113,.15); border-color: var(--red); color: var(--red); }
+
+/* ── M5: BOSS ── */
+.boss-bar-wrap { margin-bottom: .8rem; }
+.boss-timer-bar { height: 5px; background: var(--bg); border-radius: 3px; overflow: hidden; border: 1px solid var(--border); }
+.boss-timer-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg,var(--green),var(--yellow)); transition: width .1s linear, background .4s; }
+.boss-timer-fill.warn { background: linear-gradient(90deg,var(--yellow),var(--red)); }
+.boss-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: .35rem; }
+.boss-qnum { font-size: .7rem; color: var(--mid); font-weight: 700; letter-spacing: .05em; }
+.boss-tlbl { font-size: .78rem; color: var(--yellow); font-weight: 700; }
+.boss-dots { display: flex; gap: .35rem; margin-bottom: .8rem; }
+.bdot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); transition: background .3s; }
+.bdot.got  { background: var(--green); box-shadow: 0 0 5px rgba(0,255,136,.5); }
+.bdot.miss { background: var(--red); }
+.boss-q { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; color: var(--text); }
+.boss-opts { display: flex; flex-direction: column; gap: .5rem; }
+.boss-opt { background: var(--bg); border: 2px solid var(--bright); color: var(--mid); border-radius: 8px; padding: .6rem .85rem; font-size: .85rem; cursor: pointer; transition: all .15s; text-align: left; display: flex; align-items: center; gap: .6rem; }
+.boss-opt:hover:not(:disabled) { border-color: var(--blue); color: var(--text); background: rgba(0,180,255,.07); }
+.boss-opt.sc { border-color: var(--green); background: rgba(0,255,136,.08); color: var(--green); }
+.boss-opt.sw { border-color: var(--red);   background: rgba(248,113,113,.08); color: var(--red);   }
+.boss-opt.rv { border-color: var(--green); background: rgba(0,255,136,.04); color: #6ee7b7; }
+.boss-opt:disabled { cursor: default; }
+.bom { width: 22px; height: 22px; border-radius: 50%; background: var(--bg3); border: 1px solid var(--bright); display: flex; align-items: center; justify-content: center; font-size: .72rem; font-weight: 700; flex-shrink: 0; }
+.boss-start { text-align: center; padding: 1.2rem 0; }
+.boss-end   { text-align: center; padding: 1rem 0; }
+
+/* ── XP POPUP ── */
+.xp-pop { position: fixed; top: 64px; right: 16px; z-index: 1000; background: var(--card); border: 1px solid var(--green); border-radius: 12px; padding: .7rem 1rem; box-shadow: 0 0 20px rgba(0,255,136,.25); display: flex; align-items: center; gap: .7rem; animation: popIn .5s cubic-bezier(.34,1.56,.64,1) forwards; pointer-events: none; min-width: 200px; }
+@keyframes popIn { 0%{opacity:0;transform:translateX(50px) scale(.85)} 70%{opacity:1;transform:translateX(-3px)} 100%{opacity:1;transform:none} }
+.xp-pop.hiding { animation: popOut .4s ease forwards; }
+@keyframes popOut { to{opacity:0;transform:translateX(40px)} }
+.xp-pi { font-size: 1.6rem; }
+.xp-pt strong { display: block; color: var(--green); font-size: .85rem; }
+.xp-pt span   { color: var(--mid); font-size: .75rem; }
+.xp-pa { margin-left: auto; color: var(--yellow); font-size: 1.1rem; font-weight: 900; }
+
+/* ── LEVEL UP ── */
+.lv-overlay { position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,.72); display: flex; align-items: center; justify-content: center; animation: fadeIn .3s ease; }
+.lv-card { background: var(--card); border: 2px solid var(--yellow); border-radius: 18px; padding: 2.2rem; text-align: center; box-shadow: 0 0 50px rgba(251,191,36,.25); max-width: 340px; width: 90%; animation: zoom .5s cubic-bezier(.34,1.56,.64,1); }
+@keyframes zoom { from{opacity:0;transform:scale(.6)} to{opacity:1;transform:scale(1)} }
+.lv-card h2 { font-size: 1.8rem; color: var(--yellow); margin-bottom: .4rem; }
+.lv-card .lv-name { font-size: 1.1rem; font-weight: 800; margin: .6rem 0 .3rem; }
+.lv-card p { color: var(--mid); font-size: .86rem; margin-bottom: 1rem; }
+
+/* ── VICTORY ── */
+.victory { background: var(--card); border: 1px solid var(--border); border-radius: var(--r); padding: 2.5rem; text-align: center; display: none; margin-top: 1.2rem; }
+.victory.show { display: block; animation: fadeIn .6s ease; }
+.victory h2 { font-size: 2rem; font-weight: 900; background: linear-gradient(135deg,var(--green),var(--blue)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.vbadges { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin: 1.5rem 0; }
+.vbadge { text-align: center; font-size: .78rem; color: var(--mid); }
+.vbadge .vi { font-size: 2.2rem; display: block; margin-bottom: .3rem; }
+
+footer { text-align: center; padding: 1.4rem; font-size: .76rem; color: var(--dim); border-top: 1px solid var(--border); }
+
+@media (max-width: 580px) {
+  .hud { gap: .6rem; padding: .5rem .9rem; }
+  .match-wrap { grid-template-columns: 1fr; }
+  .plasm-wrap { flex-direction: column; }
+  .hero h1 { font-size: 1.8rem; }
+  .hud-badges { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── HUD ── -->
+<header class="hud">
+  <div class="hud-logo">🧬 BioLab Quest</div>
+  <div class="hud-level"><span class="lv">⭐</span><span id="lv-lbl">Lv 1 – Praktikant</span></div>
+  <div class="hud-xp-wrap">
+    <div class="hud-xp-top"><span>XP</span><span id="xp-num">0 / 150</span></div>
+    <div class="hud-bar"><div class="hud-fill" id="xp-fill" style="width:0%"></div></div>
+  </div>
+  <div class="hud-badges">
+    <div class="hud-badge" id="b1" title="Palindrom-Profi">🔬</div>
+    <div class="hud-badge" id="b2" title="Enzym-Experte">✂️</div>
+    <div class="hud-badge" id="b3" title="Plasmid-Scanner">🧬</div>
+    <div class="hud-badge" id="b4" title="Klonierungs-Meister">🔗</div>
+    <div class="hud-badge" id="b5" title="BioLab-Champion">🏆</div>
+  </div>
+</header>
+
+<!-- ── HERO ── -->
+<section class="hero">
+  <div class="hero-tag">Biologie · Basiskurs · Gymnasium BW</div>
+  <h1>BioLab Quest</h1>
+  <p>Absolviere 5 Missionen, sammle XP, steige auf und werde zum <strong style="-webkit-text-fill-color:var(--yellow)">BioLab-Champion</strong>. ~15 Minuten.</p>
+  <div class="hero-stats">
+    <div class="hero-stat">🎯 <b>5</b> Missionen</div>
+    <div class="hero-stat">⭐ <b>800</b> XP max</div>
+    <div class="hero-stat">🏆 <b>5</b> Abzeichen</div>
+    <div class="hero-stat">⏱️ <b>~15</b> Minuten</div>
+  </div>
+</section>
+
+<!-- ── MISSIONS ── -->
+<div class="ms">
+  <div class="ms-title">Deine Missionen</div>
+  <div class="ms-grid">
+
+    <!-- ════ MISSION 1 ════ -->
+    <div class="mc unlocked open" id="m1">
+      <div class="mc-hdr" onclick="toggleM(1)">
+        <div class="mc-num">1</div>
+        <div class="mc-meta">
+          <div class="mc-title">🔬 Palindrom-Jäger</div>
+          <div class="mc-sub">Erkenne die Erkennungssequenzen von Restriktionsenzymen</div>
+        </div>
+        <div class="mc-xp" id="m1-xp">+100 XP</div>
+        <div class="mc-icon" id="m1-ico">🔓</div>
+        <div class="mc-chev">▶</div>
+      </div>
+      <div class="mc-body">
+        <div class="theory">
+          <div class="theory-tag">📖 Theorie-Boost</div>
+          Restriktionsenzyme erkennen spezifische DNA-Sequenzen von <strong>4–8 Basenpaaren</strong>, die als <strong>Palindrome</strong> bezeichnet werden. Ein Palindrom liest sich auf beiden DNA-Strängen in 5'→3'-Richtung <strong>identisch</strong>. Das Enzym <em>EcoRI</em> erkennt z. B. die Sequenz <strong>GAATTC</strong>: Der Vorwärtsstrang lautet 5'-GAATTC-3', der Gegenstrang in 5'→3'-Richtung ebenfalls GAATTC (Komplementär + umgekehrt). An dieser Stelle schneidet das Enzym beide DNA-Stränge versetzt und erzeugt sogenannte <strong>klebrige Enden</strong>.
+        </div>
+        <div class="ga">
+          <div class="ga-title">Mission: Finde alle 3 Palindrome!</div>
+          <p style="font-size:.83rem;color:var(--mid);margin-bottom:.8rem">Wähle alle Sequenzen aus, die ein <strong style="color:var(--text)">Palindrom</strong> sind. Tipp: Bestimme den Komplementärstrang und lies ihn in 5'→3'-Richtung – stimmt er mit der Originalsequenz überein?</p>
+          <div class="pal-opts" id="pal-opts">
+            <button class="pal-btn" data-ok="1" onclick="togPal(this)">GAATTC</button>
+            <button class="pal-btn" data-ok="0" onclick="togPal(this)">AGTCGA</button>
+            <button class="pal-btn" data-ok="1" onclick="togPal(this)">GGATCC</button>
+            <button class="pal-btn" data-ok="0" onclick="togPal(this)">TTAACC</button>
+            <button class="pal-btn" data-ok="1" onclick="togPal(this)">AAGCTT</button>
+            <button class="pal-btn" data-ok="0" onclick="togPal(this)">GCATCA</button>
+          </div>
+          <div class="fb" id="pal-fb"></div>
+          <div class="btn-row">
+            <button class="btn btn-p" id="pal-check" onclick="checkPal()">Auswahl prüfen ✓</button>
+            <button class="btn btn-ghost" id="pal-reset" style="display:none" onclick="resetPal()">↺ Nochmal</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ MISSION 2 ════ -->
+    <div class="mc locked" id="m2">
+      <div class="mc-hdr" onclick="toggleM(2)">
+        <div class="mc-num">2</div>
+        <div class="mc-meta">
+          <div class="mc-title">✂️ Enzym-Datenbank</div>
+          <div class="mc-sub">Ordne Restriktionsenzyme ihren Erkennungssequenzen zu</div>
+        </div>
+        <div class="mc-xp" id="m2-xp">+150 XP</div>
+        <div class="mc-icon" id="m2-ico">🔒</div>
+        <div class="mc-chev">▶</div>
+      </div>
+      <div class="mc-body">
+        <div class="theory">
+          <div class="theory-tag">📖 Theorie-Boost</div>
+          Verschiedene Restriktionsenzyme erkennen unterschiedliche Palindrom-Sequenzen. <strong>EcoRI</strong> (aus <em>E. coli</em>) erkennt 5'-GAATTC-3' und schneidet zwischen G und A – es entstehen 4-Basen-Überhänge (<em>AATT</em>). <strong>BamHI</strong> (aus <em>Bacillus amyloliquefaciens</em>) erkennt 5'-GGATCC-3' und erzeugt ebenfalls 4-Basen-Überhänge (<em>GATC</em>). <strong>HindIII</strong> (aus <em>Haemophilus influenzae</em>) erkennt 5'-AAGCTT-3'. Werden Plasmid und Fremdgen mit <strong>demselben Enzym</strong> geschnitten, entstehen kompatible klebrige Enden, die sich zusammenlagern können.
+        </div>
+        <div class="ga">
+          <div class="ga-title">Mission: Verbinde Enzym mit seiner Erkennungssequenz!</div>
+          <p style="font-size:.83rem;color:var(--mid);margin-bottom:.8rem">Klicke zuerst auf ein <strong style="color:var(--text)">Enzym</strong> (links), dann auf die passende <strong style="color:var(--text)">Sequenz</strong> (rechts). 3 Paare zu finden!</p>
+          <div class="match-wrap">
+            <div>
+              <div class="match-col-lbl">🧪 Restriktionsenzym</div>
+              <div class="match-col" id="enz-col">
+                <div class="m-item" data-id="ecori"   data-type="enz" onclick="pickMatch(this)"><strong>EcoRI</strong> <span style="font-size:.72rem;color:var(--dim);display:block;margin-top:1px">aus E. coli</span></div>
+                <div class="m-item" data-id="bamhi"   data-type="enz" onclick="pickMatch(this)"><strong>BamHI</strong> <span style="font-size:.72rem;color:var(--dim);display:block;margin-top:1px">aus Bacillus</span></div>
+                <div class="m-item" data-id="hindiii" data-type="enz" onclick="pickMatch(this)"><strong>HindIII</strong> <span style="font-size:.72rem;color:var(--dim);display:block;margin-top:1px">aus H. influenzae</span></div>
+              </div>
+            </div>
+            <div>
+              <div class="match-col-lbl">🔬 Erkennungssequenz (5'→3')</div>
+              <div class="match-col" id="seq-col">
+                <div class="m-item m-seq" data-id="hindiii" data-type="seq" onclick="pickMatch(this)">5'-AAGCTT-3'</div>
+                <div class="m-item m-seq" data-id="ecori"   data-type="seq" onclick="pickMatch(this)">5'-GAATTC-3'</div>
+                <div class="m-item m-seq" data-id="bamhi"   data-type="seq" onclick="pickMatch(this)">5'-GGATCC-3'</div>
+              </div>
+            </div>
+          </div>
+          <div class="fb" id="match-fb"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ MISSION 3 ════ -->
+    <div class="mc locked" id="m3">
+      <div class="mc-hdr" onclick="toggleM(3)">
+        <div class="mc-num">3</div>
+        <div class="mc-meta">
+          <div class="mc-title">🧬 Plasmid-Scanner</div>
+          <div class="mc-sub">Scanne alle Regionen eines Vektorplasmids und lerne ihre Funktion</div>
+        </div>
+        <div class="mc-xp" id="m3-xp">+150 XP</div>
+        <div class="mc-icon" id="m3-ico">🔒</div>
+        <div class="mc-chev">▶</div>
+      </div>
+      <div class="mc-body">
+        <div class="theory">
+          <div class="theory-tag">📖 Theorie-Boost</div>
+          Ein <strong>Plasmid</strong> ist ein kleines, ringförmiges DNA-Molekül, das in Bakterienzellen vorkommt und sich <strong>selbstständig replizieren</strong> kann. Als <strong>Vektor</strong> in der Gentechnik trägt es funktionelle Bereiche: den Replikationsursprung (<em>ori</em>), einen Selektionsmarker (<em>z. B. AmpR</em> für Ampicillinresistenz) und die Multiple Cloning Site (<em>MCS</em>) zum Einbau von Fremdgenen. Plasmide sind mit 1.000–200.000 Basenpaaren deutlich kleiner als das Bakterienchromosom.
+        </div>
+        <div class="ga">
+          <div class="ga-title">Mission: Scanne alle 4 Plasmid-Regionen! (<span id="scan-c">0</span>/4)</div>
+          <div class="plasm-wrap">
+            <svg viewBox="0 0 260 260" width="200" height="200" style="flex-shrink:0" aria-label="Interaktives Plasmid">
+              <path class="pseg" id="ps-ori"
+                d="M 130 85 L 130 60 A 70 70 0 0 1 200 130 L 175 130 A 45 45 0 0 0 130 85 Z"
+                fill="#3b82f6" onclick="scanSeg('ori')" tabindex="0" role="button" aria-label="ori scannen"/>
+              <path class="pseg" id="ps-ampr"
+                d="M 175 130 L 200 130 A 70 70 0 0 1 95 190.6 L 107.5 168.9 A 45 45 0 0 0 175 130 Z"
+                fill="#f59e0b" onclick="scanSeg('ampr')" tabindex="0" role="button" aria-label="AmpR scannen"/>
+              <path class="pseg" id="ps-mcs"
+                d="M 107.5 168.9 L 95 190.6 A 70 70 0 0 1 60 130 L 85 130 A 45 45 0 0 0 107.5 168.9 Z"
+                fill="#22c55e" onclick="scanSeg('mcs')" tabindex="0" role="button" aria-label="MCS scannen"/>
+              <path class="pseg" id="ps-bb"
+                d="M 85 130 L 60 130 A 70 70 0 0 1 130 60 L 130 85 A 45 45 0 0 0 85 130 Z"
+                fill="#64748b" onclick="scanSeg('bb')" tabindex="0" role="button" aria-label="Backbone scannen"/>
+              <line x1="130" y1="60"    x2="130"  y2="85"    stroke="#080c18" stroke-width="2"/>
+              <line x1="200" y1="130"   x2="175"  y2="130"   stroke="#080c18" stroke-width="2"/>
+              <line x1="95"  y1="190.6" x2="107.5" y2="168.9" stroke="#080c18" stroke-width="2"/>
+              <line x1="60"  y1="130"   x2="85"   y2="130"   stroke="#080c18" stroke-width="2"/>
+              <circle cx="130" cy="130" r="44" fill="#0d1226"/>
+              <text x="130" y="126" text-anchor="middle" font-size="11" font-family="Arial" fill="#e2e8f0" font-weight="700">Plasmid</text>
+              <text x="130" y="141" text-anchor="middle" font-size="9"  font-family="Arial" fill="#64748b">~3 kbp</text>
+              <line x1="163" y1="97"  x2="176" y2="76"  stroke="#3b82f6" stroke-width="1.2"/>
+              <text x="179" y="74"  font-size="9" font-family="Arial" font-weight="700" fill="#60a5fa">ori</text>
+              <line x1="159" y1="170" x2="172" y2="193" stroke="#f59e0b" stroke-width="1.2"/>
+              <text x="138" y="207" text-anchor="middle" font-size="9" font-family="Arial" font-weight="700" fill="#fbbf24">AmpR</text>
+              <line x1="82"  y1="162" x2="58"  y2="175" stroke="#22c55e" stroke-width="1.2"/>
+              <text x="54"  y="183" text-anchor="end"    font-size="9" font-family="Arial" font-weight="700" fill="#4ade80">MCS</text>
+              <line x1="97"  y1="97"  x2="76"  y2="76"  stroke="#64748b" stroke-width="1.2"/>
+              <text x="72"  y="72"  text-anchor="end"    font-size="9" font-family="Arial" font-weight="700" fill="#94a3b8">Backbone</text>
+            </svg>
+            <div class="seg-panel" id="seg-panel">
+              <p style="color:var(--dim);font-style:italic;font-size:.82rem">Klicke auf einen farbigen Abschnitt des Plasmids …</p>
+              <div class="scan-dots" id="scan-dots">
+                <span>Gescannt:</span>
+                <div class="sdot" id="sd1"></div>
+                <div class="sdot" id="sd2"></div>
+                <div class="sdot" id="sd3"></div>
+                <div class="sdot" id="sd4"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ MISSION 4 ════ -->
+    <div class="mc locked" id="m4">
+      <div class="mc-hdr" onclick="toggleM(4)">
+        <div class="mc-num">4</div>
+        <div class="mc-meta">
+          <div class="mc-title">🔗 Klonierungs-Sequenz</div>
+          <div class="mc-sub">Bringe die Schritte der Plasmid-Klonierung in die richtige Reihenfolge</div>
+        </div>
+        <div class="mc-xp" id="m4-xp">+200 XP</div>
+        <div class="mc-icon" id="m4-ico">🔒</div>
+        <div class="mc-chev">▶</div>
+      </div>
+      <div class="mc-body">
+        <div class="theory">
+          <div class="theory-tag">📖 Theorie-Boost</div>
+          Die Klonierung eines Fremdgens in ein Plasmid läuft in vier Schritten ab: Zunächst werden Plasmid und Fremdgen mit <strong>demselben Restriktionsenzym</strong> geschnitten, sodass kompatible klebrige Enden entstehen. Diese <strong>Überhänge lagern sich durch Wasserstoffbrücken zusammen</strong>. Dann verbindet die <strong>DNA-Ligase</strong> die Stränge kovalent – das <em>rekombinante Plasmid</em> entsteht. Per <strong>Transformation</strong> wird es in Bakterien eingebracht; durch <strong>Selektion</strong> auf Antibiotikum-Agar werden nur die erfolgreichen Klone identifiziert.
+        </div>
+        <div class="ga">
+          <div class="ga-title">Mission: Sortiere die 4 Schritte in die richtige Reihenfolge!</div>
+          <p class="sort-hint">Klicke auf einen Schritt, um ihn <strong>auszuwählen</strong>, dann auf einen anderen, um sie zu <strong>tauschen</strong>. Klicke zweimal auf denselben, um die Auswahl aufzuheben.</p>
+          <div class="sort-list" id="sort-list"></div>
+          <div class="fb" id="sort-fb"></div>
+          <div class="btn-row">
+            <button class="btn btn-p" id="sort-check" onclick="checkSort()">Reihenfolge prüfen ✓</button>
+            <button class="btn btn-ghost" id="sort-reset" style="display:none" onclick="resetSort()">↺ Nochmal</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ MISSION 5 ════ -->
+    <div class="mc locked" id="m5">
+      <div class="mc-hdr" onclick="toggleM(5)">
+        <div class="mc-num">5</div>
+        <div class="mc-meta">
+          <div class="mc-title">🏆 Boss-Runde</div>
+          <div class="mc-sub">5 Fragen unter Zeitdruck – beweise, was du gelernt hast!</div>
+        </div>
+        <div class="mc-xp" id="m5-xp">bis +200 XP</div>
+        <div class="mc-icon" id="m5-ico">🔒</div>
+        <div class="mc-chev">▶</div>
+      </div>
+      <div class="mc-body">
+        <div class="ga" id="boss-ga">
+          <div class="boss-start" id="boss-start">
+            <div style="font-size:3rem;margin-bottom:.6rem">🏆</div>
+            <h3 style="font-size:1.1rem;font-weight:800;margin-bottom:.4rem">Finale Boss-Runde!</h3>
+            <p style="color:var(--mid);font-size:.86rem;margin-bottom:1rem">5 Fragen · je 15 Sekunden Zeit · schnellere Antworten geben <span style="color:var(--yellow);font-weight:700">Bonus-XP</span>!</p>
+            <button class="btn btn-g" onclick="startBoss()">▶ Jetzt starten</button>
+          </div>
+          <div id="boss-quiz" style="display:none">
+            <div class="boss-meta"><span class="boss-qnum" id="bqn">Frage 1/5</span><span class="boss-tlbl" id="btlbl">15s</span></div>
+            <div class="boss-timer-bar"><div class="boss-timer-fill" id="btf" style="width:100%"></div></div>
+            <div class="boss-dots" id="bdots"></div>
+            <div class="boss-q" id="bq"></div>
+            <div class="boss-opts" id="bopts"></div>
+          </div>
+          <div class="boss-end" id="boss-end" style="display:none">
+            <div style="font-size:3rem;margin-bottom:.6rem" id="bend-ico">🎉</div>
+            <h3 style="font-size:1.1rem;font-weight:800;margin-bottom:.35rem" id="bend-title"></h3>
+            <p style="color:var(--mid);font-size:.86rem" id="bend-sub"></p>
+            <div style="margin-top:.8rem;font-size:1rem;font-weight:700;color:var(--yellow)" id="bend-xp"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /ms-grid -->
+
+  <!-- VICTORY -->
+  <div class="victory" id="victory">
+    <div style="font-size:3rem;margin-bottom:.7rem">🏆</div>
+    <h2>BioLab-Champion!</h2>
+    <p style="color:var(--mid);margin:.5rem 0 .3rem">Alle Missionen abgeschlossen · Dein Endstand:</p>
+    <div style="font-size:2.2rem;font-weight:900;color:var(--yellow);margin:.8rem 0 1.5rem" id="v-xp"></div>
+    <div class="vbadges">
+      <div class="vbadge"><span class="vi">🔬</span>Palindrom-Profi</div>
+      <div class="vbadge"><span class="vi">✂️</span>Enzym-Experte</div>
+      <div class="vbadge"><span class="vi">🧬</span>Plasmid-Scanner</div>
+      <div class="vbadge"><span class="vi">🔗</span>Klonierungs-Meister</div>
+      <div class="vbadge"><span class="vi">🏆</span>BioLab-Champion</div>
+    </div>
+    <p style="font-size:.8rem;color:var(--dim)">Biologie-Basiskurs · Gymnasium Baden-Württemberg · Plasmide & Restriktionsenzyme</p>
+  </div>
+</div>
+
+<footer>BioLab Quest · Biologie-Basiskurs · Gymnasium Baden-Württemberg · Thema: Plasmide & Restriktionsenzyme</footer>
+
+<script>
+"use strict";
+
+/* ═══════════════════════════════════════
+   XP & LEVEL SYSTEM
+═══════════════════════════════════════ */
+const LEVELS = [
+  { min:   0, next: 150, label: 'Lv 1 – Praktikant',        icon: '🧪' },
+  { min: 150, next: 350, label: 'Lv 2 – Laborassistent',    icon: '🔬' },
+  { min: 350, next: 550, label: 'Lv 3 – BioTech-Forscher',  icon: '🧬' },
+  { min: 550, next: 700, label: 'Lv 4 – Gentechnik-Experte',icon: '✂️' },
+  { min: 700, next: 800, label: 'Lv 5 – BioLab-Champion',   icon: '🏆' },
+];
+let xp = 0, lvi = 0;
+
+function addXP(amount, label, icon) {
+  const old = lvi;
+  xp += amount;
+  refreshHUD();
+  showXPPop(amount, label, icon);
+  if (lvi > old) setTimeout(showLvUp, 700);
+}
+
+function refreshHUD() {
+  lvi = 0;
+  for (let i = LEVELS.length - 1; i >= 0; i--) { if (xp >= LEVELS[i].min) { lvi = i; break; } }
+  const lv = LEVELS[lvi];
+  document.getElementById('lv-lbl').textContent = lv.label;
+  const pct = lv.next ? ((xp - lv.min) / (lv.next - lv.min)) * 100 : 100;
+  document.getElementById('xp-fill').style.width = Math.min(100, Math.max(0, pct)) + '%';
+  document.getElementById('xp-num').textContent = xp + ' / ' + (lv.next || 800) + ' XP';
+}
+
+function showXPPop(amount, label, icon) {
+  document.querySelectorAll('.xp-pop').forEach(e => e.remove());
+  const el = document.createElement('div');
+  el.className = 'xp-pop';
+  el.innerHTML = `<div class="xp-pi">${icon||'⭐'}</div><div class="xp-pt"><strong>${label||'XP verdient!'}</strong><span>Super gemacht!</span></div><div class="xp-pa">+${amount} XP</div>`;
+  document.body.appendChild(el);
+  setTimeout(() => { el.classList.add('hiding'); setTimeout(() => el.remove(), 400); }, 2800);
+}
+
+function showLvUp() {
+  const lv = LEVELS[lvi];
+  const o = document.createElement('div');
+  o.className = 'lv-overlay';
+  o.innerHTML = `<div class="lv-card"><div style="font-size:2.5rem;margin-bottom:.4rem">${lv.icon}</div><h2>Level Up!</h2><div class="lv-name">${lv.label}</div><p>Du wirst immer besser! 🎉</p><button class="btn btn-g" onclick="this.closest('.lv-overlay').remove()">Weiter! →</button></div>`;
+  document.body.appendChild(o);
+}
+
+function earnBadge(n) {
+  const el = document.getElementById('b' + n);
+  if (el) el.classList.add('earned');
+}
+
+/* ═══════════════════════════════════════
+   MISSION STATE
+═══════════════════════════════════════ */
+const done = [false, false, false, false, false];
+
+function toggleM(n) {
+  const card = document.getElementById('m' + n);
+  if (card.classList.contains('locked')) return;
+  card.classList.toggle('open');
+}
+
+function completeM(n, earnedXP, label, icon) {
+  if (done[n-1]) return;
+  done[n-1] = true;
+  const card = document.getElementById('m' + n);
+  card.classList.remove('unlocked', 'active');
+  card.classList.add('complete');
+  document.getElementById('m' + n + '-ico').textContent = '✅';
+  const xpBadge = document.getElementById('m' + n + '-xp');
+  xpBadge.textContent = '✓ Abgeschlossen';
+  xpBadge.style.cssText = 'background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.3);color:var(--green)';
+  earnBadge(n);
+  addXP(earnedXP, label, icon);
+  if (n < 5) setTimeout(() => unlockM(n + 1), 900);
+  else       setTimeout(showVictory, 1200);
+}
+
+function unlockM(n) {
+  const card = document.getElementById('m' + n);
+  if (!card) return;
+  card.classList.remove('locked');
+  card.classList.add('unlocked', 'open');
+  document.getElementById('m' + n + '-ico').textContent = '🔓';
+  setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+}
+
+function showVictory() {
+  const v = document.getElementById('victory');
+  document.getElementById('v-xp').textContent = xp + ' / 800 XP';
+  v.classList.add('show');
+  setTimeout(() => v.scrollIntoView({ behavior: 'smooth' }), 100);
+}
+
+/* ═══════════════════════════════════════
+   MISSION 1 – PALINDROME
+═══════════════════════════════════════ */
+let palDone = false;
+
+function togPal(btn) {
+  if (palDone) return;
+  btn.classList.toggle('sel');
+}
+
+function checkPal() {
+  if (palDone) return;
+  const btns = document.querySelectorAll('#pal-opts .pal-btn');
+  let anySel = false, allOk = true;
+  btns.forEach(b => { if (b.classList.contains('sel')) anySel = true; });
+  if (!anySel) {
+    showFB('pal-fb', 'inf', '💡 Wähle zuerst die Sequenzen aus, die du für Palindrome hältst!');
+    return;
+  }
+  btns.forEach(b => {
+    b.disabled = true;
+    const ok = b.dataset.ok === '1';
+    const sel = b.classList.contains('sel');
+    if (ok !== sel) allOk = false;
+    if (ok)       b.classList.add('correct');
+    else if (sel) b.classList.add('wrong');
+  });
+  document.getElementById('pal-check').style.display = 'none';
+  document.getElementById('pal-reset').style.display = '';
+  if (allOk) {
+    showFB('pal-fb', 'ok', '🎉 <strong>Perfekt!</strong> GAATTC (EcoRI), GGATCC (BamHI) und AAGCTT (HindIII) sind Palindrome – auf dem Gegenstrang in 5\'→3\' identisch. AGTCGA, TTAACC und GCATCA erfüllen diese Bedingung nicht.');
+    palDone = true;
+    completeM(1, 100, 'Palindrom-Profi freigeschaltet!', '🔬');
+  } else {
+    showFB('pal-fb', 'err', '❌ <strong>Noch nicht ganz!</strong> Prüfe jede Sequenz: Schreibe den Komplementärstrang (A↔T, G↔C) und lies ihn von rechts nach links (5\'→3\'). Stimmt er mit der Originalsequenz überein? Dann ist es ein Palindrom!');
+  }
+}
+
+function resetPal() {
+  if (palDone) return;
+  document.querySelectorAll('#pal-opts .pal-btn').forEach(b => { b.disabled = false; b.className = 'pal-btn'; });
+  hideFB('pal-fb');
+  document.getElementById('pal-check').style.display = '';
+  document.getElementById('pal-reset').style.display = 'none';
+}
+
+/* ═══════════════════════════════════════
+   MISSION 2 – ENZYME MATCH
+═══════════════════════════════════════ */
+let matchSel = null, matchErrors = 0, matchCount = 0;
+
+function pickMatch(el) {
+  if (el.classList.contains('matched')) return;
+  const fb = document.getElementById('match-fb');
+
+  if (el.dataset.type === 'enz') {
+    document.querySelectorAll('.m-item.sel').forEach(e => e.classList.remove('sel'));
+    el.classList.add('sel');
+    matchSel = el;
+    hideFB('match-fb');
+    return;
+  }
+  // It's a sequence – need enzyme selected first
+  if (!matchSel) {
+    showFB('match-fb', 'inf', '💡 Klicke zuerst auf ein <strong>Enzym</strong> (links), dann auf die passende Sequenz (rechts).');
+    return;
+  }
+  const enzId = matchSel.dataset.id;
+  const seqId = el.dataset.id;
+  if (enzId === seqId) {
+    matchSel.classList.remove('sel'); matchSel.classList.add('matched');
+    el.classList.add('matched');
+    matchSel = null; matchCount++;
+    if (matchCount === 3) {
+      showFB('match-fb', 'ok', '🎉 <strong>Alle 3 Paare gefunden!</strong> EcoRI → GAATTC · BamHI → GGATCC · HindIII → AAGCTT. Diese Enzyme sind die Grundwerkzeuge der Gentechnik!');
+      const xpReward = matchErrors === 0 ? 150 : matchErrors <= 2 ? 120 : 90;
+      completeM(2, xpReward, 'Enzym-Experte freigeschaltet!', '✂️');
+    } else {
+      showFB('match-fb', 'ok', `✓ Richtig! Noch ${3 - matchCount} Paar${3 - matchCount > 1 ? 'e' : ''} übrig.`);
+    }
+  } else {
+    matchErrors++;
+    el.classList.add('wrong'); matchSel.classList.add('wrong');
+    const e = matchSel; matchSel = null;
+    setTimeout(() => { el.classList.remove('wrong'); e.classList.remove('wrong', 'sel'); }, 650);
+    showFB('match-fb', 'err', '❌ Diese Kombination passt nicht – versuche es erneut!');
+  }
+}
+
+/* ═══════════════════════════════════════
+   MISSION 3 – PLASMID SCANNER
+═══════════════════════════════════════ */
+const SEG_DATA = {
+  ori:  { color:'#3b82f6', title:'Replikationsursprung (ori)', xp:40,
+    text:'Der <strong>ori</strong> (origin of replication) ist die Startsequenz für die DNA-Replikation des Plasmids. Er ermöglicht dem Plasmid, sich unabhängig vom Bakterienchromosom zu vervielfältigen – oft entstehen so <em>mehrere Kopien</em> pro Zelle.' },
+  ampr: { color:'#f59e0b', title:'Antibiotikaresistenz-Gen (AmpR)', xp:40,
+    text:'Das <strong>AmpR-Gen</strong> kodiert für eine Ampicillinase, die das Antibiotikum Ampicillin abbaut. Als <em>Selektionsmarker</em> ermöglicht es, Bakterien mit aufgenommenem Plasmid auf Nährböden mit Antibiotikum zu identifizieren.' },
+  mcs:  { color:'#22c55e', title:'Multiple Cloning Site (MCS)', xp:35,
+    text:'Die <strong>MCS</strong> enthält viele verschiedene Restriktionsschnittstellen dicht beieinander. Hier wird das gewünschte Fremdgen eingebaut: Das Plasmid wird gezielt geöffnet und nach der Ligation wieder geschlossen.' },
+  bb:   { color:'#64748b', title:'Backbone (Plasmid-Rückgrat)', xp:35,
+    text:'Das <strong>Backbone</strong> ist das strukturelle Gerüst des Plasmids und verbindet alle funktionellen Elemente. In der Gentechnik wird das Backbone oft als Basis für verschiedene maßgeschneiderte Vektoren wiederverwendet.' },
+};
+const scanned = new Set();
+const SD_ORDER = ['ori', 'ampr', 'mcs', 'bb'];
+
+function scanSeg(key) {
+  const d = SEG_DATA[key];
+  const already = scanned.has(key);
+  // Always show info
+  document.getElementById('seg-panel').innerHTML = `
+    <h4 style="color:${d.color}">${d.title}${already ? '' : ` <span class="seg-xp">+${d.xp} XP</span>`}</h4>
+    <p>${d.text}</p>
+    <div class="scan-dots" id="scan-dots"><span>Gescannt:</span>
+      ${SD_ORDER.map((k,i) => `<div class="sdot${scanned.has(k)||(k===key&&!already)?' done':''}" id="sd${i+1}"></div>`).join('')}
+    </div>`;
+  if (already) return;
+  scanned.add(key);
+  document.getElementById('ps-' + key).classList.add('scanned');
+  document.getElementById('scan-c').textContent = scanned.size;
+  showXPPop(d.xp, d.title + ' gescannt!', '🔬');
+  if (scanned.size === 4) {
+    setTimeout(() => completeM(3, 150, 'Plasmid-Scanner freigeschaltet!', '🧬'), 600);
+  }
+}
+
+/* ═══════════════════════════════════════
+   MISSION 4 – SORT
+═══════════════════════════════════════ */
+const STEPS = [
+  { id:1, text:'🧬 Plasmid und Fremdgen werden mit <strong>demselben Restriktionsenzym</strong> geschnitten – beide erhalten kompatible klebrige Enden.' },
+  { id:2, text:'🔗 Die komplementären klebrigen Enden <strong>lagern sich durch Wasserstoffbrücken</strong> aneinander an (Hybridisierung).' },
+  { id:3, text:'✂️ Die <strong>DNA-Ligase</strong> verbindet die Stränge kovalent – das rekombinante Plasmid ist entstanden.' },
+  { id:4, text:'🦠 <strong>Transformation & Selektion</strong>: Das Plasmid wird in Bakterien eingebracht; auf Antibiotikum-Agar überleben nur erfolgreiche Klone.' },
+];
+let sortSel = null, sortDone = false, sortOrder = [];
+
+function initSort() {
+  sortOrder = [...STEPS].sort(() => Math.random() - 0.5);
+  renderSort();
+}
+
+function renderSort() {
+  const list = document.getElementById('sort-list');
+  list.innerHTML = '';
+  sortOrder.forEach((step, idx) => {
+    const div = document.createElement('div');
+    div.className = 'sort-item';
+    div.dataset.id = step.id;
+    div.innerHTML = `<div class="sort-n">${idx + 1}</div><div>${step.text}</div>`;
+    div.onclick = () => clickSortItem(div);
+    list.appendChild(div);
+  });
+}
+
+function clickSortItem(el) {
+  if (sortDone) return;
+  if (sortSel === el) {
+    el.classList.remove('sel');
+    sortSel = null;
+    return;
+  }
+  if (sortSel) {
+    swapSort(sortSel, el);
+    sortSel.classList.remove('sel');
+    sortSel = null;
+  } else {
+    document.querySelectorAll('.sort-item.sel').forEach(e => e.classList.remove('sel'));
+    el.classList.add('sel');
+    sortSel = el;
+  }
+}
+
+function swapSort(a, b) {
+  const list = document.getElementById('sort-list');
+  const items = [...list.querySelectorAll('.sort-item')];
+  const ai = items.indexOf(a), bi = items.indexOf(b);
+  if (ai < bi) { list.insertBefore(b, a); list.insertBefore(a, items[bi + 1] || null); }
+  else         { list.insertBefore(a, b); list.insertBefore(b, items[ai + 1] || null); }
+  [...list.querySelectorAll('.sort-item')].forEach((el, i) => el.querySelector('.sort-n').textContent = i + 1);
+}
+
+function checkSort() {
+  if (sortDone) return;
+  const items = [...document.querySelectorAll('#sort-list .sort-item')];
+  let correct = true;
+  items.forEach((item, idx) => {
+    const ok = parseInt(item.dataset.id) === idx + 1;
+    if (!ok) correct = false;
+    item.classList.add(ok ? 'correct' : 'wrong');
+    item.onclick = null;
+  });
+  document.getElementById('sort-check').style.display = 'none';
+  document.getElementById('sort-reset').style.display = '';
+  if (correct) {
+    showFB('sort-fb', 'ok', '🎉 <strong>Korrekte Reihenfolge!</strong> Schneiden (1) → Hybridisierung (2) → Ligation (3) → Transformation & Selektion (4). Das ist der klassische Ablauf der rekombinanten DNA-Technologie!');
+    sortDone = true;
+    completeM(4, 200, 'Klonierungs-Meister freigeschaltet!', '🔗');
+  } else {
+    showFB('sort-fb', 'err', '❌ <strong>Noch nicht ganz!</strong> Denke an den logischen Ablauf: Zuerst müssen die Enden erzeugt werden, bevor sie sich zusammenlagern und verbunden werden können – und dann erst kommt das Einbringen in Bakterien.');
+  }
+}
+
+function resetSort() {
+  if (sortDone) return;
+  hideFB('sort-fb');
+  document.getElementById('sort-check').style.display = '';
+  document.getElementById('sort-reset').style.display = 'none';
+  sortSel = null;
+  initSort();
+}
+
+initSort();
+
+/* ═══════════════════════════════════════
+   MISSION 5 – BOSS QUIZ
+═══════════════════════════════════════ */
+const BQ = [
+  { q:'Was ist die Voraussetzung dafür, dass ein Restriktionsenzym eine DNA-Sequenz schneidet?',
+    opts:['Die Sequenz muss methyliert sein.','Die Sequenz muss ein Palindrom bilden.','Die Sequenz muss aus mindestens 10 Basenpaaren bestehen.','Das Enzym muss vom Bakterienchromosom stammen.'], c:1 },
+  { q:'Warum werden Fremdgen und Plasmid mit demselben Restriktionsenzym geschnitten?',
+    opts:['Damit beide DNA-Moleküle gleich groß werden.','Damit kompatible klebrige Enden entstehen, die sich zusammenlagern können.','Damit die DNA-Ligase aktiviert wird.','Damit das Fremdgen methyliert wird.'], c:1 },
+  { q:'Was unterscheidet ein Plasmid vom Hauptchromosom einer Bakterienzelle?',
+    opts:['Das Plasmid enthält keine Gene.','Das Plasmid ist linear, das Chromosom ringförmig.','Das Plasmid repliziert sich selbstständig und ist deutlich kleiner als das Chromosom.','Das Plasmid befindet sich außerhalb der Zelle.'], c:2 },
+  { q:'Welche Funktion hat die DNA-Ligase bei der Herstellung eines rekombinanten Plasmids?',
+    opts:['Sie schneidet das Plasmid an der MCS.','Sie überträgt das Plasmid in die Bakterienzelle.','Sie verbindet die klebrigen Enden kovalent zu einem geschlossenen Ringmolekül.','Sie methyliert die Erkennungssequenzen des Restriktionsenzyms.'], c:2 },
+  { q:'Wie werden nach der Transformation nur die Bakterien mit rekombinantem Plasmid identifiziert?',
+    opts:['Sie leuchten unter UV-Licht auf.','Nur sie besitzen das Antibiotikaresistenz-Gen und überleben auf Selektionsagar.','Sie teilen sich schneller als Bakterien ohne Plasmid.','Sie produzieren eine sichtbare Farbe auf dem Nährboden.'], c:1 },
+];
+
+let bqi = 0, bTimer = null, bTime = 15, bResults = [], bXP = 0, bStart = 0;
+
+function startBoss() {
+  document.getElementById('boss-start').style.display = 'none';
+  document.getElementById('boss-quiz').style.display = 'block';
+  bqi = 0; bResults = []; bXP = 0;
+  showBQ();
+}
+
+function showBQ() {
+  const q = BQ[bqi];
+  document.getElementById('bqn').textContent = `Frage ${bqi+1}/5`;
+  document.getElementById('bq').innerHTML = q.q;
+  // Dots
+  const dots = document.getElementById('bdots');
+  dots.innerHTML = bResults.map(r => `<div class="bdot ${r?'got':'miss'}"></div>`).join('') +
+    Array(5 - bResults.length).fill('<div class="bdot"></div>').join('');
+  // Options
+  const oEl = document.getElementById('bopts');
+  oEl.innerHTML = '';
+  ['A','B','C','D'].forEach((ltr, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'boss-opt';
+    btn.innerHTML = `<span class="bom">${ltr}</span>${q.opts[i]}`;
+    btn.onclick = () => answerBQ(i);
+    oEl.appendChild(btn);
+  });
+  // Timer
+  bTime = 15; bStart = Date.now();
+  clearInterval(bTimer);
+  tickBQ();
+  bTimer = setInterval(tickBQ, 100);
+}
+
+function tickBQ() {
+  bTime = 15 - (Date.now() - bStart) / 1000;
+  if (bTime < 0) bTime = 0;
+  const pct = (bTime / 15) * 100;
+  const fill = document.getElementById('btf');
+  fill.style.width = pct + '%';
+  fill.classList.toggle('warn', bTime <= 5);
+  document.getElementById('btlbl').textContent = Math.ceil(bTime) + 's';
+  if (bTime <= 0) { clearInterval(bTimer); answerBQ(-1); }
+}
+
+function answerBQ(sel) {
+  clearInterval(bTimer);
+  const q = BQ[bqi];
+  const opts = document.querySelectorAll('#bopts .boss-opt');
+  opts.forEach(b => b.disabled = true);
+  const timeUsed = (Date.now() - bStart) / 1000;
+  const ok = sel === q.c;
+  if (sel >= 0) opts[sel].classList.add(ok ? 'sc' : 'sw');
+  if (!ok) opts[q.c].classList.add('rv');
+  opts[sel >= 0 ? sel : 0].querySelector('.bom').textContent = ok ? '✓' : '✗';
+  if (!ok && sel >= 0) opts[q.c].querySelector('.bom').textContent = '✓';
+  if (ok) {
+    const speed = Math.max(0, Math.floor((15 - timeUsed) * 2.5));
+    bXP += 25 + speed;
+  }
+  bResults.push(ok);
+  setTimeout(() => {
+    bqi++;
+    if (bqi < 5) showBQ();
+    else endBoss();
+  }, ok ? 800 : 1400);
+}
+
+function endBoss() {
+  document.getElementById('boss-quiz').style.display = 'none';
+  document.getElementById('boss-end').style.display = 'block';
+  const correct = bResults.filter(Boolean).length;
+  const icons   = ['😅','🙂','🎯','🎯','🏆','🏆'];
+  const titles  = ['Weiter üben!','Gut versucht!','Ordentlich!','Sehr gut!','Exzellent!','PERFEKT!'];
+  document.getElementById('bend-ico').textContent   = icons[correct];
+  document.getElementById('bend-title').textContent = titles[correct];
+  document.getElementById('bend-sub').textContent   = `${correct} von 5 Fragen richtig.${correct>=4?' Du beherrschst das Thema!':' Lies die Theorie-Boxen nochmal durch.'}`;
+  const finalXP = Math.max(40, bXP);
+  document.getElementById('bend-xp').textContent = `+${finalXP} XP verdient`;
+  completeM(5, finalXP, 'BioLab-Champion freigeschaltet!', '🏆');
+}
+
+/* ═══════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════ */
+function showFB(id, type, html) {
+  const el = document.getElementById(id);
+  el.className = 'fb ' + type + ' show';
+  el.innerHTML = html;
+}
+function hideFB(id) {
+  const el = document.getElementById(id);
+  el.className = 'fb';
+  el.innerHTML = '';
+}
+
+/* ── Init ── */
+refreshHUD();
+</script>
+</body>
+</html>
